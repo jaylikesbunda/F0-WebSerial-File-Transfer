@@ -156,3 +156,168 @@ setTimeout(() => {
     appendStatus('👋 Welcome to Flipper File Transfer!');
     appendStatus('Click the Help button for usage instructions.');
 }, 100);
+
+class EditorEnhancements {
+    constructor(textareaId) {
+        this.textarea = document.getElementById(textareaId);
+        if (!this.textarea) {
+            console.error('Textarea not found:', textareaId);
+            return;
+        }
+        
+        this.setupEditor();
+        this.setupEventListeners();
+        this.updateLineNumbers();
+        this.updateStatusBar();
+    }
+
+    setupEditor() {
+        // Wrap textarea in container
+        const container = document.createElement('div');
+        container.className = 'editor-container';
+        this.textarea.parentNode.insertBefore(container, this.textarea);
+
+        // Create toolbar
+        const toolbar = document.createElement('div');
+        toolbar.className = 'editor-toolbar';
+        toolbar.innerHTML = `
+            <button id="toggleWordWrap" class="active" title="Toggle Word Wrap">Word Wrap</button>
+            <button id="toggleLineNumbers" class="active" title="Toggle Line Numbers">Line Numbers</button>
+            <button id="formatCode" title="Format Code">Format</button>
+            <button id="copyContent" title="Copy to Clipboard">Copy</button>
+        `;
+        container.appendChild(toolbar);
+
+        // Create editor wrapper
+        const wrapper = document.createElement('div');
+        wrapper.className = 'editor-wrapper';
+        container.appendChild(wrapper);
+
+        // Create line numbers
+        const lineNumbers = document.createElement('div');
+        lineNumbers.className = 'line-numbers';
+        wrapper.appendChild(lineNumbers);
+
+        // Move textarea into wrapper
+        wrapper.appendChild(this.textarea);
+
+        // Create status bar
+        const statusBar = document.createElement('div');
+        statusBar.className = 'editor-statusbar';
+        statusBar.innerHTML = `
+            <span id="cursorPosition">Line: 1, Column: 1</span>
+            <span id="charCount">Characters: 0</span>
+        `;
+        container.appendChild(statusBar);
+
+        // Store references
+        this.container = container;
+        this.lineNumbers = lineNumbers;
+        this.statusBar = statusBar;
+    }
+
+    setupEventListeners() {
+        // Word wrap toggle
+        const wordWrapBtn = this.container.querySelector('#toggleWordWrap');
+        wordWrapBtn.addEventListener('click', () => {
+            const isActive = wordWrapBtn.classList.toggle('active');
+            this.textarea.style.whiteSpace = isActive ? 'pre-wrap' : 'pre';
+            this.textarea.style.overflowX = isActive ? 'hidden' : 'auto';
+        });
+
+        // Line numbers toggle
+        const lineNumbersBtn = this.container.querySelector('#toggleLineNumbers');
+        lineNumbersBtn.addEventListener('click', () => {
+            const isActive = lineNumbersBtn.classList.toggle('active');
+            this.lineNumbers.style.display = isActive ? 'block' : 'none';
+        });
+
+        // Format code
+        this.container.querySelector('#formatCode').addEventListener('click', () => {
+            try {
+                const lines = this.textarea.value.split('\n');
+                const formattedLines = lines.map(line => line.trim());
+                this.textarea.value = formattedLines.join('\n');
+                this.updateLineNumbers();
+            } catch (error) {
+                console.error('Formatting error:', error);
+            }
+        });
+
+        // Copy content
+        this.container.querySelector('#copyContent').addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(this.textarea.value);
+                const btn = this.container.querySelector('#copyContent');
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = originalText, 1500);
+            } catch (error) {
+                console.error('Copy error:', error);
+            }
+        });
+
+        // Update line numbers and status on content change
+        this.textarea.addEventListener('input', () => {
+            this.updateLineNumbers();
+            this.updateStatusBar();
+        });
+
+        // Update cursor position
+        this.textarea.addEventListener('click', () => this.updateStatusBar());
+        this.textarea.addEventListener('keyup', () => this.updateStatusBar());
+        
+        // Sync scroll positions
+        this.textarea.addEventListener('scroll', () => {
+            this.lineNumbers.scrollTop = this.textarea.scrollTop;
+        });
+
+        // Handle tab key
+        this.textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.textarea.selectionStart;
+                const end = this.textarea.selectionEnd;
+                
+                // Insert tab
+                this.textarea.value = this.textarea.value.substring(0, start) + 
+                                    '    ' + // 4 spaces
+                                    this.textarea.value.substring(end);
+                
+                // Put cursor at right position
+                this.textarea.selectionStart = this.textarea.selectionEnd = start + 4;
+                
+                this.updateLineNumbers();
+                this.updateStatusBar();
+            }
+        });
+    }
+
+    updateLineNumbers() {
+        const lines = this.textarea.value.split('\n');
+        const numbers = lines.map((_, i) => i + 1).join('\n');
+        this.lineNumbers.textContent = numbers;
+    }
+
+    updateStatusBar() {
+        const pos = this.textarea.selectionStart;
+        const content = this.textarea.value;
+        
+        // Calculate line and column
+        const lines = content.substr(0, pos).split('\n');
+        const currentLine = lines.length;
+        const currentColumn = lines[lines.length - 1].length + 1;
+        
+        // Update status bar
+        const cursorPosition = this.statusBar.querySelector('#cursorPosition');
+        const charCount = this.statusBar.querySelector('#charCount');
+        
+        cursorPosition.textContent = `Line: ${currentLine}, Column: ${currentColumn}`;
+        charCount.textContent = `Characters: ${content.length}`;
+    }
+}
+
+// Initialize editor enhancements after DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    const editor = new EditorEnhancements('scriptContent');
+});
