@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Browser-based file transfer tool for Flipper Zero using WebSerial API">
+    <meta name="theme-color" content="#ff8616">
+    <title>Flipper Zero WebSerial File Transfer</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="favicon.png">
+    <!-- Open Graph tags for better social sharing -->
+    <meta property="og:title" content="Flipper Zero WebSerial File Transfer">
+    <meta property="og:description" content="Browser-based file transfer tool for Flipper Zero using WebSerial API">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Flipper Zero WebSerial File Transfer</h1>
+            <p class="subtitle">Transfer files directly through your browser</p>
+            <button id="helpBtn" class="help-btn" aria-label="Help">Help</button>
+        </div>
+        <div class="connection-status" role="status" aria-live="polite">
+            <div class="status-indicator" aria-label="Connection status indicator"></div>
+            <div class="controls">
+                <button id="connectBtn" aria-label="Connect to Flipper Zero">Connect to Flipper</button>
+                <button id="disconnectBtn" disabled aria-label="Disconnect from Flipper Zero">Disconnect</button>
+            </div>
+        </div>
+        <div class="file-config">
+            <div class="file-location">
+                <label for="folderSelect">Save Location:</label>
+                <div class="location-inputs">
+                    <select id="folderSelect" aria-label="Select folder location">
+                        <option value="/ext/badusb/">BadUSB Scripts</option>
+                        <option value="/ext/subghz/">Sub-GHz Captures</option>
+                        <option value="/ext/nfc/">NFC Data</option>
+                        <option value="/ext/lfrfid/">RFID Data</option>
+                        <option value="/ext/infrared/">Infrared Signals</option>
+                        <option value="/ext/ibutton/">iButton Data</option>
+                        <option value="custom">Custom Path...</option>
+                    </select>
+                    <input type="text" id="customPath" placeholder="Enter custom path (e.g., /ext/my_scripts/)" 
+                           aria-label="Custom path input" style="display: none;">
+                </div>
+            </div>
+            
+            <div class="filename-input">
+                <label for="fileName">Filename:</label>
+                <input type="text" id="fileName" placeholder="Enter filename (e.g., my_script.txt)" 
+                       aria-label="Enter filename">
+            </div>
+        </div>
+        <div class="editor-section">
+            <label for="scriptContent">File Content:</label>
+            <textarea id="scriptContent" placeholder="Enter your file content here..." 
+                      aria-label="File content editor"></textarea>
+        </div>
+        
+        <button id="sendBtn" disabled aria-label="Send to Flipper Zero">Send to Flipper</button>
+        <div class="status-section">
+            <label for="status">Status Log:</label>
+            <div id="status" class="status-log" role="log" aria-live="polite">Ready to connect...</div>
+        </div>
+    </div>
+    <script src="serial.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
