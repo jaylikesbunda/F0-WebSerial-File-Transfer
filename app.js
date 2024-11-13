@@ -4,6 +4,7 @@ const flipper = new FlipperSerial();
 const connectBtn = document.getElementById('connectBtn');
 const disconnectBtn = document.getElementById('disconnectBtn');
 const sendBtn = document.getElementById('sendBtn');
+const executeBtn = document.getElementById('executeBtn');
 const statusDiv = document.getElementById('status');
 const scriptContent = document.getElementById('scriptContent');
 const filePath = document.getElementById('filePath');
@@ -12,14 +13,6 @@ const customFolderBtn = document.getElementById('customFolderBtn');
 const customPathInput = document.getElementById('customPath');
 const fileNameInput = document.getElementById('fileName');
 const helpBtn = document.getElementById('helpBtn');
-const textModeBtn = document.getElementById('textModeBtn');
-const binaryModeBtn = document.getElementById('binaryModeBtn');
-const fileInput = document.getElementById('fileInput');
-const uploadBtn = document.getElementById('uploadBtn');
-const fileName = document.getElementById('selectedFileName');
-// Add this after the existing DOM element declarations
-let currentMode = 'text';
-let selectedFile = null;
 
 // Status Updates
 function appendStatus(message) {
@@ -33,92 +26,24 @@ function setStatus(message) {
     statusDiv.textContent = `[${timestamp}] ${message}`;
 }
 
-function handleModeChange(mode) {
-    currentMode = mode;
-    const editorContainer = document.querySelector('.editor-container');  // Get the entire editor container
-    const uploadArea = document.querySelector('.upload-area');
-
-    if (mode === 'text') {
-        textModeBtn.classList.add('active');
-        binaryModeBtn.classList.remove('active');
-        // Show editor, hide upload
-        editorContainer.style.display = 'block';
-        uploadArea.style.display = 'none';
+function getFullPath() {
+    const filename = fileNameInput.value.trim();
+    let filepath;
+    
+    if (customPathInput.style.display !== 'none') {
+        filepath = customPathInput.value.trim();
+        if (!filepath.startsWith('/ext/')) {
+            filepath = '/ext/' + filepath;
+        }
+        if (!filepath.endsWith('/')) {
+            filepath += '/';
+        }
     } else {
-        textModeBtn.classList.remove('active');
-        binaryModeBtn.classList.add('active');
-        // Hide editor, show upload
-        editorContainer.style.display = 'none';
-        uploadArea.style.display = 'flex';
+        filepath = folderSelect.value;
     }
+    
+    return filepath + filename;
 }
-
-async function handleFileSelect(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    selectedFile = file;
-    fileName.textContent = file.name;
-    fileNameInput.value = file.name;
-
-    if (currentMode === 'text') {
-        const text = await file.text();
-        scriptContent.value = text;
-    }
-}
-
-// Modify the existing handleSend function
-async function handleSend() {
-    try {
-        sendBtn.disabled = true;
-        const filename = fileNameInput.value.trim();
-        let filepath;
-        
-        if (customPathInput.style.display !== 'none') {
-            filepath = customPathInput.value.trim();
-            if (!filepath.startsWith('/ext/')) {
-                filepath = '/ext/' + filepath;
-            }
-            if (!filepath.endsWith('/')) {
-                filepath += '/';
-            }
-        } else {
-            filepath = folderSelect.value;
-        }
-        
-        filepath += filename;
-
-        if (!filename) {
-            appendStatus('❌ Please enter a filename');
-            return;
-        }
-
-        let content;
-        if (currentMode === 'text') {
-            content = scriptContent.value;
-            if (!content) {
-                appendStatus('❌ Please enter some content to save');
-                return;
-            }
-        } else if (currentMode === 'binary' && selectedFile) {
-            content = await selectedFile.arrayBuffer();
-            content = new Uint8Array(content);
-        } else {
-            appendStatus('❌ Please select a file to upload');
-            return;
-        }
-
-        appendStatus(`📝 Saving file to: ${filepath}`);
-        await flipper.writeFile(filepath, content);
-        appendStatus('✅ File transfer completed and verified!');
-        appendStatus('File has been transferred to your Flipper Zero.');
-    } catch (error) {
-        appendStatus(`❌ Write error: ${error.message}`);
-    } finally {
-        sendBtn.disabled = false;
-    }
-}
-
 
 // Event Handlers
 async function handleConnect() {
@@ -126,13 +51,10 @@ async function handleConnect() {
         setStatus('Connecting to Flipper Zero...');
         await flipper.connect();
         
-        // Update UI elements
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
         sendBtn.disabled = false;
-        
-        // Add the connected class to status indicator
-        document.querySelector('.status-indicator').classList.add('connected');
+        executeBtn.disabled = false;
         
         appendStatus('Connected to Flipper Zero successfully!');
         appendStatus('Ready to transfer files. Choose a folder or enter a custom path.');
@@ -156,17 +78,91 @@ async function handleDisconnect() {
     try {
         await flipper.disconnect();
         
-        // Update UI elements
         connectBtn.disabled = false;
         disconnectBtn.disabled = true;
         sendBtn.disabled = true;
-        
-        // Remove the connected class from status indicator
-        document.querySelector('.status-indicator').classList.remove('connected');
+        executeBtn.disabled = true;
         
         appendStatus('Disconnected from Flipper Zero');
     } catch (error) {
         appendStatus(`❌ Disconnection error: ${error.message}`);
+    }
+}
+
+async function handleSend() {
+    try {
+        sendBtn.disabled = true;
+        const filepath = getFullPath();
+
+        if (!fileNameInput.value.trim()) {
+            appendStatus('❌ Please enter a filename');
+            return;
+        }
+
+        const content = scriptContent.value;
+        if (!content) {
+            appendStatus('❌ Please enter some content to save');
+            return;
+        }
+
+        appendStatus(`📝 Saving file to: ${filepath}`);
+        await flipper.writeFile(filepath, content);
+        appendStatus('✅ File transfer completed and verified!');
+        appendStatus('You can now use your script on the Flipper Zero.');
+        updateExecuteButton(); // Update execute button state after successful transfer
+    } catch (error) {
+        appendStatus(`❌ Write error: ${error.message}`);
+    } finally {
+        sendBtn.disabled = false;
+    }
+}
+
+async function handleExecute() {
+    try {
+        const filepath = getFullPath();
+        
+        // Add confirmation for BadUSB scripts
+        if (filepath.includes('/badusb/')) {
+            if (!confirm('⚠️ WARNING: You are about to execute a BadUSB script. This could perform keyboard actions on your computer. Are you sure you want to continue?')) {
+                appendStatus('❌ BadUSB execution cancelled by user');
+                return;
+            }
+        }
+        
+        executeBtn.disabled = true;
+        
+        if (!fileNameInput.value.trim()) {
+            appendStatus('❌ Please enter a filename');
+            return;
+        }
+
+        appendStatus(`🔄 Executing file: ${filepath}`);
+        await flipper.executeScript(filepath);
+        
+        if (filepath.includes('/badusb/')) {
+            appendStatus('⚠️ BadUSB script loaded - check your Flipper screen to run');
+            appendStatus('📝 Use Flipper buttons to control the script');
+        } else {
+            appendStatus('✅ File executed successfully!');
+        }
+        
+    } catch (error) {
+        appendStatus(`❌ Execute error: ${error.message}`);
+    } finally {
+        executeBtn.disabled = false;
+    }
+}
+
+function updateExecuteButton() {
+    const filepath = getFullPath();
+    const isBadUSB = filepath.includes('/badusb/');
+    
+    if (isBadUSB) {
+        executeBtn.classList.add('warning-btn');
+        executeBtn.title = "⚠️ This will execute a BadUSB script!";
+    } else {
+        executeBtn.classList.remove('warning-btn');
+        executeBtn.title = "Execute this file on Flipper";
     }
 }
 
@@ -179,6 +175,7 @@ folderSelect.addEventListener('change', (e) => {
         customPathInput.style.display = 'none';
         folderSelect.style.width = '100%';
     }
+    updateExecuteButton();
 });
 
 // Help button handler
@@ -190,6 +187,7 @@ helpBtn.addEventListener('click', () => {
     appendStatus('4. Choose a folder type or enter custom path');
     appendStatus('5. Enter your script content');
     appendStatus('6. Click "Send to Flipper"');
+    appendStatus('7. Click "Execute on Flipper" to run the file');
     appendStatus('\n📁 Default Folders:');
     appendStatus('- /ext/badusb/    : BadUSB scripts');
     appendStatus('- /ext/subghz/    : Sub-GHz captures');
@@ -203,6 +201,10 @@ helpBtn.addEventListener('click', () => {
 connectBtn.addEventListener('click', handleConnect);
 disconnectBtn.addEventListener('click', handleDisconnect);
 sendBtn.addEventListener('click', handleSend);
+executeBtn.addEventListener('click', handleExecute);
+folderSelect.addEventListener('change', updateExecuteButton);
+fileNameInput.addEventListener('input', updateExecuteButton);
+customPathInput?.addEventListener('input', updateExecuteButton);
 
 // Handle page unload
 window.addEventListener('beforeunload', () => {
@@ -217,175 +219,7 @@ setTimeout(() => {
     appendStatus('Click the Help button for usage instructions.');
 }, 100);
 
-class EditorEnhancements {
-    constructor(textareaId) {
-        this.textarea = document.getElementById(textareaId);
-        if (!this.textarea) {
-            console.error('Textarea not found:', textareaId);
-            return;
-        }
-        
-        this.setupEditor();
-        this.setupEventListeners();
-        this.updateLineNumbers();
-        this.updateStatusBar();
-    }
-
-    setupEditor() {
-        // Wrap textarea in container
-        const container = document.createElement('div');
-        container.className = 'editor-container';
-        this.textarea.parentNode.insertBefore(container, this.textarea);
-
-        // Create toolbar
-        const toolbar = document.createElement('div');
-        toolbar.className = 'editor-toolbar';
-        toolbar.innerHTML = `
-            <button id="toggleWordWrap" class="active" title="Toggle Word Wrap">Word Wrap</button>
-            <button id="toggleLineNumbers" class="active" title="Toggle Line Numbers">Line Numbers</button>
-            <button id="formatCode" title="Format Code">Format</button>
-            <button id="copyContent" title="Copy to Clipboard">Copy</button>
-        `;
-        container.appendChild(toolbar);
-
-        // Create editor wrapper
-        const wrapper = document.createElement('div');
-        wrapper.className = 'editor-wrapper';
-        container.appendChild(wrapper);
-
-        // Create line numbers
-        const lineNumbers = document.createElement('div');
-        lineNumbers.className = 'line-numbers';
-        wrapper.appendChild(lineNumbers);
-
-        // Move textarea into wrapper
-        wrapper.appendChild(this.textarea);
-
-        // Create status bar
-        const statusBar = document.createElement('div');
-        statusBar.className = 'editor-statusbar';
-        statusBar.innerHTML = `
-            <span id="cursorPosition">Line: 1, Column: 1</span>
-            <span id="charCount">Characters: 0</span>
-        `;
-        container.appendChild(statusBar);
-
-        // Store references
-        this.container = container;
-        this.lineNumbers = lineNumbers;
-        this.statusBar = statusBar;
-    }
-
-    setupEventListeners() {
-        // Word wrap toggle
-        const wordWrapBtn = this.container.querySelector('#toggleWordWrap');
-        wordWrapBtn.addEventListener('click', () => {
-            const isActive = wordWrapBtn.classList.toggle('active');
-            this.textarea.style.whiteSpace = isActive ? 'pre-wrap' : 'pre';
-            this.textarea.style.overflowX = isActive ? 'hidden' : 'auto';
-        });
-
-        // Line numbers toggle
-        const lineNumbersBtn = this.container.querySelector('#toggleLineNumbers');
-        lineNumbersBtn.addEventListener('click', () => {
-            const isActive = lineNumbersBtn.classList.toggle('active');
-            this.lineNumbers.style.display = isActive ? 'block' : 'none';
-        });
-
-        // Format code
-        this.container.querySelector('#formatCode').addEventListener('click', () => {
-            try {
-                const lines = this.textarea.value.split('\n');
-                const formattedLines = lines.map(line => line.trim());
-                this.textarea.value = formattedLines.join('\n');
-                this.updateLineNumbers();
-            } catch (error) {
-                console.error('Formatting error:', error);
-            }
-        });
-
-        // Copy content
-        this.container.querySelector('#copyContent').addEventListener('click', async () => {
-            try {
-                await navigator.clipboard.writeText(this.textarea.value);
-                const btn = this.container.querySelector('#copyContent');
-                const originalText = btn.textContent;
-                btn.textContent = 'Copied!';
-                setTimeout(() => btn.textContent = originalText, 1500);
-            } catch (error) {
-                console.error('Copy error:', error);
-            }
-        });
-
-        // Update line numbers and status on content change
-        this.textarea.addEventListener('input', () => {
-            this.updateLineNumbers();
-            this.updateStatusBar();
-        });
-
-        // Update cursor position
-        this.textarea.addEventListener('click', () => this.updateStatusBar());
-        this.textarea.addEventListener('keyup', () => this.updateStatusBar());
-        
-        // Sync scroll positions
-        this.textarea.addEventListener('scroll', () => {
-            this.lineNumbers.scrollTop = this.textarea.scrollTop;
-        });
-
-        // Handle tab key
-        this.textarea.addEventListener('keydown', (e) => {
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                const start = this.textarea.selectionStart;
-                const end = this.textarea.selectionEnd;
-                
-                // Insert tab
-                this.textarea.value = this.textarea.value.substring(0, start) + 
-                                    '    ' + // 4 spaces
-                                    this.textarea.value.substring(end);
-                
-                // Put cursor at right position
-                this.textarea.selectionStart = this.textarea.selectionEnd = start + 4;
-                
-                this.updateLineNumbers();
-                this.updateStatusBar();
-            }
-        });
-    }
-
-    updateLineNumbers() {
-        const lines = this.textarea.value.split('\n');
-        const numbers = lines.map((_, i) => i + 1).join('\n');
-        this.lineNumbers.textContent = numbers;
-    }
-
-    updateStatusBar() {
-        const pos = this.textarea.selectionStart;
-        const content = this.textarea.value;
-        
-        // Calculate line and column
-        const lines = content.substr(0, pos).split('\n');
-        const currentLine = lines.length;
-        const currentColumn = lines[lines.length - 1].length + 1;
-        
-        // Update status bar
-        const cursorPosition = this.statusBar.querySelector('#cursorPosition');
-        const charCount = this.statusBar.querySelector('#charCount');
-        
-        cursorPosition.textContent = `Line: ${currentLine}, Column: ${currentColumn}`;
-        charCount.textContent = `Characters: ${content.length}`;
-    }
-}
-
-// Add these with the other event listeners
-textModeBtn.addEventListener('click', () => handleModeChange('text'));
-binaryModeBtn.addEventListener('click', () => handleModeChange('binary'));
-uploadBtn.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', handleFileSelect);
-
 // Initialize editor enhancements after DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     const editor = new EditorEnhancements('scriptContent');
-    handleModeChange('text'); // Set initial mode
-    
 });
