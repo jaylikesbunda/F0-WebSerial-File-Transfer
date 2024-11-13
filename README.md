@@ -1,27 +1,26 @@
 # Flipper Zero WebSerial File Transfer
 
-A browser-based file transfer tool for Flipper Zero that uses the WebSerial API to transfer files directly through Chrome/Edge.
+A browser-based file transfer tool for Flipper Zero that uses the WebSerial API to transfer files directly through Chrome/Edge without requiring any software installation.
 
 ## Features
-- Direct browser-to-Flipper file transfers without installing software
-- Built-in file explorer for browsing Flipper's storage
-- Supports common Flipper Zero file paths (BadUSB, Sub-GHz, NFC, etc.)
-- Two transfer modes:
- - Text Editor: For creating/editing text files 
- - File Mode: For uploading existing files
-- Dark mode interface
-- Real-time status feedback
+
+- Direct browser-to-Flipper file transfers using WebSerial
+- Support for common Flipper Zero file paths (BadUSB, Sub-GHz, NFC, etc.)
+- Custom path support for advanced users
+- Built-in text editor for file content
+- Real-time connection status and transfer feedback
 
 ## Usage
+
 1. Connect your Flipper Zero via USB
 2. Open the web interface in Chrome/Edge
 3. Click "Connect to Flipper"
-4. Choose transfer mode (Text or File)
-5. Select destination folder or browse using file explorer
-6. Enter/upload content
-7. Click "Send to Flipper" to transfer
+4. Select destination folder or enter custom path
+5. Enter filename and content
+6. Click "Send to Flipper" to transfer
 
 ## Requirements
-- Chrome or Edge browser (WebSerial support required)
+
+- Chromium-based browser (Chrome/Edge) that supports WebSerial API
 - Flipper Zero device connected via USB
 - qFlipper should be closed while using this tool

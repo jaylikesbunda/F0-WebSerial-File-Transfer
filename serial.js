@@ -67,6 +67,63 @@ class FlipperSerial {
         }
     }
 
+    async listDirectory(path) {
+        if (!this.isConnected) {
+            throw new Error('Not connected to Flipper');
+        }
+    
+        try {
+            // Clear buffer
+            this.responseBuffer = '';
+            
+            // Send storage list command
+            await this.write(`storage list ${path}\r\n`);
+            
+            // Wait for command echo
+            await this.readUntil(`storage list ${path}`);
+            
+            // Read until prompt
+            const response = await this.readUntil('>');
+            
+            // Parse the response into lines and filter out empty lines
+            const lines = response.split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.includes('>'));
+                
+            // Transform into structured data
+            return lines.map(line => {
+                const isDirectory = line.startsWith('[D]');
+                const name = isDirectory ? line.slice(3).trim() : line.trim();
+                return {
+                    name,
+                    isDirectory,
+                    path: `${path}/${name}`.replace(/\/+/g, '/'),
+                    type: isDirectory ? 'directory' : this.getFileType(name)
+                };
+            });
+        } catch (error) {
+            this.debug('List directory failed:', error);
+            throw error;
+        }
+    }
+    
+    // Helper method to determine file type
+    getFileType(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const types = {
+            txt: 'text',
+            sub: 'subghz',
+            rfid: 'rfid',
+            ir: 'infrared',
+            nfc: 'nfc',
+            js: 'script',
+            fap: 'application',
+            ibtn: 'ibutton'
+        };
+        return types[ext] || 'unknown';
+    }
+
+
     async readLoop() { // Changed from _readLoop to readLoop
         while (true) {
             try {
@@ -89,87 +146,6 @@ class FlipperSerial {
             }
         }
     }
-
-
-    async executeScript(path) {
-        if (!this.isConnected) {
-            throw new Error('Not connected to Flipper');
-        }
-
-        this.debug('Starting execute operation for:', path);
-        
-        try {
-            // Clear buffer
-            this.responseBuffer = '';
-
-            // Verify file exists first
-            this.debug('Verifying file exists');
-            const statCmd = `storage stat ${path}`;
-            await this.write(statCmd + '\r\n');
-            
-            // Wait for command echo and response
-            await this.readUntil(statCmd);
-            const statResponse = await this.readUntil('>:');
-            
-            if (statResponse.includes('Error') || statResponse.includes('not found')) {
-                throw new Error('File not found');
-            }
-
-            // Execute based on file extension and path
-            if (path.endsWith('.js')) {
-                // JavaScript file
-                await this.writeCommand(`js ${path}`);
-            } else if (path.endsWith('.fap')) {
-                // FAP application
-                await this.writeCommand(`loader open ${path}`);
-            } else if (path.includes('/badusb/')) {
-                // BadUSB script
-                this.debug('Executing BadUSB script');
-                await this.writeCommand(`loader open BadUSB`);
-                
-                // Wait for BadUSB app to load
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                // Send "Play" command
-                await this.write('\r\n');
-                await this.readUntil('>');
-                
-                // Navigate to the file
-                this.debug('Navigating to script');
-                await this.write('u'.repeat(5)); // Up a few times to ensure at top
-                await new Promise(resolve => setTimeout(resolve, 200));
-                
-                // Send Down until we find our file
-                const filename = path.split('/').pop();
-                await this.writeCommand(`storage show ${path}`);
-                
-                // Run the script
-                await this.write('\r\n');
-                await this.readUntil('>');
-                
-                appendStatus('⚠️ BadUSB script started - check your Flipper screen');
-                
-            } else if (path.endsWith('.txt') || path.endsWith('.sub')) {
-                // Text file - read it
-                await this.writeCommand(`storage read ${path}`);
-            } else {
-                throw new Error('Unsupported file type for execution');
-            }
-
-            return true;
-        } catch (error) {
-            this.debug('Execute operation failed:', error);
-            this.debug('Buffer contents:', this.responseBuffer);
-            throw error;
-        }
-    }
-
-    // Add helper method to check if path is a BadUSB script
-    isScriptType(path, type) {
-        return path.toLowerCase().includes(`/${type}/`) || 
-            path.toLowerCase().includes(`\\${type}\\`);
-    }
-
 
     async readUntil(marker, timeout = 5000) {
         return new Promise((resolve, reject) => {
@@ -224,7 +200,7 @@ class FlipperSerial {
         if (!this.isConnected) {
             throw new Error('Not connected to Flipper');
         }
-
+    
         this.debug('Starting write operation for:', path);
         
         try {
@@ -236,18 +212,24 @@ class FlipperSerial {
             if (dirPath) {
                 await this.writeCommand(`storage mkdir ${dirPath}`);
             }
-
+    
             // Start write command and wait for prompt
             this.debug('Starting storage write');
             await this.write(`storage write ${path}\r\n`);
             
-            // Wait for the specific write prompt text we see in the logs
+            // Wait for the write prompt
             this.debug('Waiting for write prompt...');
             await this.readUntil('Just write your text data. New line by Ctrl+Enter, exit by Ctrl+C.', 5000);
             
             // Write the content
             this.debug('Writing content');
-            await this.write(content);
+            if (content instanceof Uint8Array) {
+                // Binary data
+                await this.writer.write(content);
+            } else {
+                // Text data
+                await this.write(content);
+            }
             await new Promise(resolve => setTimeout(resolve, 500));
             
             // Send newline to complete content
@@ -259,12 +241,12 @@ class FlipperSerial {
             this.debug('Sending Ctrl+C');
             await this.writer.write(new Uint8Array([0x03]));
             await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Wait for the specific prompt pattern we see in the logs
+    
+            // Wait for prompt
             this.debug('Waiting for CLI prompt');
             await this.readUntil('>:', 5000);
             
-            // Clear any remaining output
+            // Clear remaining output
             await new Promise(resolve => setTimeout(resolve, 200));
             this.responseBuffer = '';
             
@@ -273,7 +255,6 @@ class FlipperSerial {
             const statCmd = `storage stat ${path}`;
             await this.write(statCmd + '\r\n');
             
-            // Wait for command echo and response
             await this.readUntil(statCmd);
             const statResponse = await this.readUntil('>:');
             
@@ -288,7 +269,7 @@ class FlipperSerial {
             throw error;
         }
     }
-
+    
     async write(data) {
         const encoder = new TextEncoder();
         await this.writer.write(encoder.encode(data));
