@@ -12,6 +12,14 @@ const customFolderBtn = document.getElementById('customFolderBtn');
 const customPathInput = document.getElementById('customPath');
 const fileNameInput = document.getElementById('fileName');
 const helpBtn = document.getElementById('helpBtn');
+const textModeBtn = document.getElementById('textModeBtn');
+const binaryModeBtn = document.getElementById('binaryModeBtn');
+const fileInput = document.getElementById('fileInput');
+const uploadBtn = document.getElementById('uploadBtn');
+const fileName = document.getElementById('selectedFileName');
+// Add this after the existing DOM element declarations
+let currentMode = 'text';
+let selectedFile = null;
 
 // Status Updates
 function appendStatus(message) {
@@ -25,15 +33,106 @@ function setStatus(message) {
     statusDiv.textContent = `[${timestamp}] ${message}`;
 }
 
+function handleModeChange(mode) {
+    currentMode = mode;
+    const editorContainer = document.querySelector('.editor-container');  // Get the entire editor container
+    const uploadArea = document.querySelector('.upload-area');
+
+    if (mode === 'text') {
+        textModeBtn.classList.add('active');
+        binaryModeBtn.classList.remove('active');
+        // Show editor, hide upload
+        editorContainer.style.display = 'block';
+        uploadArea.style.display = 'none';
+    } else {
+        textModeBtn.classList.remove('active');
+        binaryModeBtn.classList.add('active');
+        // Hide editor, show upload
+        editorContainer.style.display = 'none';
+        uploadArea.style.display = 'flex';
+    }
+}
+
+async function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    selectedFile = file;
+    fileName.textContent = file.name;
+    fileNameInput.value = file.name;
+
+    if (currentMode === 'text') {
+        const text = await file.text();
+        scriptContent.value = text;
+    }
+}
+
+// Modify the existing handleSend function
+async function handleSend() {
+    try {
+        sendBtn.disabled = true;
+        const filename = fileNameInput.value.trim();
+        let filepath;
+        
+        if (customPathInput.style.display !== 'none') {
+            filepath = customPathInput.value.trim();
+            if (!filepath.startsWith('/ext/')) {
+                filepath = '/ext/' + filepath;
+            }
+            if (!filepath.endsWith('/')) {
+                filepath += '/';
+            }
+        } else {
+            filepath = folderSelect.value;
+        }
+        
+        filepath += filename;
+
+        if (!filename) {
+            appendStatus('❌ Please enter a filename');
+            return;
+        }
+
+        let content;
+        if (currentMode === 'text') {
+            content = scriptContent.value;
+            if (!content) {
+                appendStatus('❌ Please enter some content to save');
+                return;
+            }
+        } else if (currentMode === 'binary' && selectedFile) {
+            content = await selectedFile.arrayBuffer();
+            content = new Uint8Array(content);
+        } else {
+            appendStatus('❌ Please select a file to upload');
+            return;
+        }
+
+        appendStatus(`📝 Saving file to: ${filepath}`);
+        await flipper.writeFile(filepath, content);
+        appendStatus('✅ File transfer completed and verified!');
+        appendStatus('File has been transferred to your Flipper Zero.');
+    } catch (error) {
+        appendStatus(`❌ Write error: ${error.message}`);
+    } finally {
+        sendBtn.disabled = false;
+    }
+}
+
+
 // Event Handlers
 async function handleConnect() {
     try {
         setStatus('Connecting to Flipper Zero...');
         await flipper.connect();
         
+        // Update UI elements
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
         sendBtn.disabled = false;
+        
+        // Add the connected class to status indicator
+        document.querySelector('.status-indicator').classList.add('connected');
         
         appendStatus('Connected to Flipper Zero successfully!');
         appendStatus('Ready to transfer files. Choose a folder or enter a custom path.');
@@ -57,56 +156,17 @@ async function handleDisconnect() {
     try {
         await flipper.disconnect();
         
+        // Update UI elements
         connectBtn.disabled = false;
         disconnectBtn.disabled = true;
         sendBtn.disabled = true;
         
+        // Remove the connected class from status indicator
+        document.querySelector('.status-indicator').classList.remove('connected');
+        
         appendStatus('Disconnected from Flipper Zero');
     } catch (error) {
         appendStatus(`❌ Disconnection error: ${error.message}`);
-    }
-}
-
-async function handleSend() {
-    try {
-        sendBtn.disabled = true;
-        const filename = fileNameInput.value.trim();
-        let filepath;
-        
-        if (customPathInput.style.display !== 'none') {
-            // Using custom path
-            filepath = customPathInput.value.trim();
-            if (!filepath.startsWith('/ext/')) {
-                filepath = '/ext/' + filepath;
-            }
-            if (!filepath.endsWith('/')) {
-                filepath += '/';
-            }
-        } else {
-            filepath = folderSelect.value;
-        }
-        
-        filepath += filename;
-
-        if (!filename) {
-            appendStatus('❌ Please enter a filename');
-            return;
-        }
-
-        const content = scriptContent.value;
-        if (!content) {
-            appendStatus('❌ Please enter some content to save');
-            return;
-        }
-
-        appendStatus(`📝 Saving file to: ${filepath}`);
-        await flipper.writeFile(filepath, content);
-        appendStatus('✅ File transfer completed and verified!');
-        appendStatus('You can now use your script on the Flipper Zero.');
-    } catch (error) {
-        appendStatus(`❌ Write error: ${error.message}`);
-    } finally {
-        sendBtn.disabled = false;
     }
 }
 
@@ -317,7 +377,15 @@ class EditorEnhancements {
     }
 }
 
+// Add these with the other event listeners
+textModeBtn.addEventListener('click', () => handleModeChange('text'));
+binaryModeBtn.addEventListener('click', () => handleModeChange('binary'));
+uploadBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', handleFileSelect);
+
 // Initialize editor enhancements after DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     const editor = new EditorEnhancements('scriptContent');
+    handleModeChange('text'); // Set initial mode
+    
 });

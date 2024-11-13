@@ -143,7 +143,7 @@ class FlipperSerial {
         if (!this.isConnected) {
             throw new Error('Not connected to Flipper');
         }
-
+    
         this.debug('Starting write operation for:', path);
         
         try {
@@ -155,18 +155,24 @@ class FlipperSerial {
             if (dirPath) {
                 await this.writeCommand(`storage mkdir ${dirPath}`);
             }
-
+    
             // Start write command and wait for prompt
             this.debug('Starting storage write');
             await this.write(`storage write ${path}\r\n`);
             
-            // Wait for the specific write prompt text we see in the logs
+            // Wait for the write prompt
             this.debug('Waiting for write prompt...');
             await this.readUntil('Just write your text data. New line by Ctrl+Enter, exit by Ctrl+C.', 5000);
             
             // Write the content
             this.debug('Writing content');
-            await this.write(content);
+            if (content instanceof Uint8Array) {
+                // Binary data
+                await this.writer.write(content);
+            } else {
+                // Text data
+                await this.write(content);
+            }
             await new Promise(resolve => setTimeout(resolve, 500));
             
             // Send newline to complete content
@@ -178,12 +184,12 @@ class FlipperSerial {
             this.debug('Sending Ctrl+C');
             await this.writer.write(new Uint8Array([0x03]));
             await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Wait for the specific prompt pattern we see in the logs
+    
+            // Wait for prompt
             this.debug('Waiting for CLI prompt');
             await this.readUntil('>:', 5000);
             
-            // Clear any remaining output
+            // Clear remaining output
             await new Promise(resolve => setTimeout(resolve, 200));
             this.responseBuffer = '';
             
@@ -192,7 +198,6 @@ class FlipperSerial {
             const statCmd = `storage stat ${path}`;
             await this.write(statCmd + '\r\n');
             
-            // Wait for command echo and response
             await this.readUntil(statCmd);
             const statResponse = await this.readUntil('>:');
             
@@ -207,7 +212,7 @@ class FlipperSerial {
             throw error;
         }
     }
-
+    
     async write(data) {
         const encoder = new TextEncoder();
         await this.writer.write(encoder.encode(data));
