@@ -293,6 +293,177 @@ class FlipperSerial {
         }
     }
 
+    async loaderList() {
+        if (!this.isConnected) {
+            throw new Error('Not connected to Flipper');
+        }
+    
+        try {
+            // Clear buffer
+            this.responseBuffer = '';
+            
+            // Send loader list command
+            await this.write('loader list\r\n');
+            
+            // Wait for command echo
+            await this.readUntil('loader list');
+            
+            // Get response until prompt
+            const response = await this.readUntil('>');
+            
+            // Parse available applications
+            const apps = response.split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.includes('>'));
+                
+            return apps;
+        } catch (error) {
+            this.debug('Loader list failed:', error);
+            throw error;
+        }
+    }
+    
+    async loaderOpen(appName, filePath = null) {
+        if (!this.isConnected) {
+            throw new Error('Not connected to Flipper');
+        }
+    
+        this.debug('Opening application:', appName, 'with file:', filePath);
+        
+        try {
+            // Clear buffer
+            this.responseBuffer = '';
+            
+            // Send loader open command with optional file path
+            const command = filePath 
+                ? `loader open "${appName}" "${filePath}"`
+                : `loader open "${appName}"`;
+                
+            await this.write(command + '\r\n');
+            
+            // Wait for command echo
+            await this.readUntil(command);
+            
+            // Wait for response
+            const response = await this.readUntil('>');
+            
+            if (response.toLowerCase().includes('error')) {
+                throw new Error(`Loader open failed: ${response}`);
+            }
+            
+            return true;
+        } catch (error) {
+            this.debug('Loader open failed:', error);
+            throw error;
+        }
+    }
+    async loaderClose() {
+        if (!this.isConnected) {
+            throw new Error('Not connected to Flipper');
+        }
+    
+        this.debug('Closing loader');
+        
+        try {
+            // Clear buffer
+            this.responseBuffer = '';
+            
+            // Send loader close command
+            await this.write('loader close\r\n');
+            
+            // Wait for command echo
+            await this.readUntil('loader close');
+            
+            // Wait for response
+            const response = await this.readUntil('>');
+            
+            if (response.toLowerCase().includes('error')) {
+                throw new Error(`Loader close failed: ${response}`);
+            }
+            
+            return true;
+        } catch (error) {
+            this.debug('Loader close failed:', error);
+            throw error;
+        }
+    }
+    
+    async loaderInfo() {
+        if (!this.isConnected) {
+            throw new Error('Not connected to Flipper');
+        }
+    
+        try {
+            // Clear buffer
+            this.responseBuffer = '';
+            
+            // Send loader info command
+            await this.write('loader info\r\n');
+            
+            // Wait for command echo
+            await this.readUntil('loader info');
+            
+            // Get response until prompt
+            const response = await this.readUntil('>');
+            
+            return response.trim();
+        } catch (error) {
+            this.debug('Loader info failed:', error);
+            throw error;
+        }
+    }
+    
+    async loaderSignal(signal, arg = null) {
+        if (!this.isConnected) {
+            throw new Error('Not connected to Flipper');
+        }
+    
+        this.debug('Sending signal:', signal, 'with arg:', arg);
+        
+        try {
+            // Clear buffer
+            this.responseBuffer = '';
+            
+            // Construct signal command
+            const command = `loader signal ${signal}${arg ? ` ${arg}` : ''}`;
+            await this.write(command + '\r\n');
+            
+            // Wait for command echo
+            await this.readUntil(command);
+            
+            // Wait for response
+            const response = await this.readUntil('>');
+            
+            if (response.toLowerCase().includes('error')) {
+                throw new Error(`Signal failed: ${response}`);
+            }
+            
+            return true;
+        } catch (error) {
+            this.debug('Loader signal failed:', error);
+            throw error;
+        }
+    }
+    
+    // Convenience method for Bad USB
+    async openBadUSB() {
+        try {
+            // First check if any app is running
+            const info = await this.loaderInfo();
+            if (info.includes('running')) {
+                await this.loaderClose();
+            }
+            
+            // Open Bad USB application
+            await this.loaderOpen('Bad USB');
+            return true;
+        } catch (error) {
+            this.debug('Bad USB open failed:', error);
+            throw error;
+        }
+    }
+    
+
     async disconnect() {
         try {
             if (this.writer) {
@@ -315,3 +486,4 @@ class FlipperSerial {
         }
     }
 }
+

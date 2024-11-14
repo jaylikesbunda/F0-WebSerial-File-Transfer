@@ -17,6 +17,40 @@ const binaryModeBtn = document.getElementById('binaryModeBtn');
 const fileInput = document.getElementById('fileInput');
 const uploadBtn = document.getElementById('uploadBtn');
 const fileName = document.getElementById('selectedFileName');
+const launchBtn = document.createElement('button');
+launchBtn.id = 'launchBtn';
+launchBtn.innerHTML = '▶️ Launch BadUSB';
+launchBtn.className = 'launch-btn';
+launchBtn.style.display = 'none'; // Initially hidden
+launchBtn.title = 'Launch selected BadUSB script';
+document.querySelector('#sendBtn').insertAdjacentElement('afterend', launchBtn);
+// Add this to your CSS
+const style = document.createElement('style');
+style.textContent = `
+    .launch-btn {
+        width: 100%;
+        padding: 14px;
+        font-size: 16px;
+        margin: 8px 0;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+    
+    .launch-btn:hover:not(:disabled) {
+        background: var(--accent-primary);
+        border-color: var(--accent-primary);
+    }
+    
+    .launch-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+`;
+document.head.appendChild(style);
 
 // Add this after the existing DOM element declarations
 let currentMode = 'text';
@@ -34,6 +68,65 @@ function setStatus(message) {
     const timestamp = new Date().toLocaleTimeString();
     statusDiv.textContent = `[${timestamp}] ${message}`;
 }
+
+function updateLaunchButton() {
+    const currentPath = customPathInput.style.display !== 'none' 
+        ? customPathInput.value 
+        : folderSelect.value;
+        
+    const filename = fileNameInput.value;
+    const isBadUSBPath = currentPath.includes('/ext/badusb') || folderSelect.value === '/ext/badusb/';
+    
+    launchBtn.style.display = isBadUSBPath ? 'block' : 'none';
+    launchBtn.disabled = !flipper.isConnected || !filename;
+}
+
+// Add launch handler
+async function handleLaunch() {
+    try {
+        launchBtn.disabled = true;
+        appendStatus('🚀 Launching BadUSB script...');
+        
+        // First make sure loader is closed
+        await flipper.loaderClose().catch(() => {});
+        
+        // Construct full file path
+        const filePath = customPathInput.style.display !== 'none'
+            ? `${customPathInput.value}/${fileNameInput.value}`.replace(/\/+/g, '/')
+            : `${folderSelect.value}${fileNameInput.value}`;
+            
+        // Open BadUSB app with the file path
+        await flipper.loaderOpen('Bad USB', filePath);
+        appendStatus('✅ BadUSB app opened with script: ' + filePath);
+        appendStatus('Press the OK button on your Flipper to execute the script.');
+        
+    } catch (error) {
+        appendStatus(`❌ Launch error: ${error.message}`);
+    } finally {
+        launchBtn.disabled = false;
+    }
+}
+
+// Add event listeners
+launchBtn.addEventListener('click', handleLaunch);
+folderSelect.addEventListener('change', (e) => {
+    const isCustom = e.target.value === 'custom';
+    customPathInput.style.display = isCustom ? 'block' : 'none';
+    folderSelect.style.width = isCustom ? '120px' : '100%';
+    
+    // Update explorer visibility
+    if (window.explorerInstance) {
+        window.explorerInstance.showExplorer(isCustom);
+        if (!isCustom) {
+            window.explorerInstance.navigate(e.target.value);
+        }
+    }
+    
+    updateLaunchButton(); // Add this line
+});
+
+customPathInput.addEventListener('input', updateLaunchButton);
+fileNameInput.addEventListener('input', updateLaunchButton);
 
 function handleModeChange(mode) {
     currentMode = mode;
@@ -76,15 +169,21 @@ async function handleSend() {
         const filename = fileNameInput.value.trim();
         let filepath;
         
-        if (customPathInput.style.display !== 'none') {
+        // Check if using a custom path or a preset selection
+        if (customPathInput.style.display !== 'none' && customPathInput.value.trim()) {
             filepath = customPathInput.value.trim();
+            
+            // Add "/ext/" prefix if it doesn't already start with it
             if (!filepath.startsWith('/ext/')) {
                 filepath = '/ext/' + filepath;
             }
+            
+            // Ensure path ends with a slash
             if (!filepath.endsWith('/')) {
                 filepath += '/';
             }
         } else {
+            // Use the selected preset path directly from folderSelect
             filepath = folderSelect.value;
         }
         
@@ -126,6 +225,22 @@ async function handleSend() {
         sendBtn.disabled = false;
     }
 }
+
+function setInitialPath() {
+    const defaultPath = folderSelect.value;
+    if (defaultPath && defaultPath !== 'custom') {
+        customPathInput.style.display = 'none';
+        folderSelect.style.width = '100%';
+        updateLaunchButton();
+
+        // If we have an explorer instance, update it
+        if (window.explorerInstance) {
+            window.explorerInstance.showExplorer(false);
+            window.explorerInstance.navigate(defaultPath);
+        }
+    }
+}
+
 // Event Handlers
 async function handleConnect() {
     try {
@@ -143,17 +258,17 @@ async function handleConnect() {
         // Listen for file selection
         document.getElementById('fileExplorer').addEventListener('fileSelected', (e) => {
             const path = e.detail.path;
-            // Auto-fill the path in the existing UI
             const filename = path.split('/').pop();
             const directory = path.substring(0, path.lastIndexOf('/'));
             
-            // Update UI
             fileNameInput.value = filename;
             if (directory !== customPathInput.value) {
                 folderSelect.value = 'custom';
                 customPathInput.style.display = 'block';
                 customPathInput.value = directory;
             }
+            
+            updateLaunchButton(); // Add this line
         });
         
         document.querySelector('.status-indicator').classList.add('connected');
@@ -161,7 +276,8 @@ async function handleConnect() {
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
         sendBtn.disabled = false;
-
+        
+        updateLaunchButton(); // Add this line
         
         appendStatus('Connected to Flipper Zero successfully!');
         appendStatus('Ready to transfer files. Use the file explorer or choose a folder.');
@@ -179,15 +295,14 @@ async function handleDisconnect() {
     try {
         await flipper.disconnect();
         
-        // Update UI elements
         connectBtn.disabled = false;
         disconnectBtn.disabled = true;
         sendBtn.disabled = true;
         
-        // Remove the connected class from status indicator
         document.querySelector('.status-indicator').classList.remove('connected');
         
         appendStatus('Disconnected from Flipper Zero');
+        updateLaunchButton();  // Add this line
     } catch (error) {
         appendStatus(`❌ Disconnection error: ${error.message}`);
     }
@@ -242,6 +357,7 @@ window.addEventListener('beforeunload', () => {
 setTimeout(() => {
     appendStatus('👋 Welcome to Flipper File Transfer!');
     appendStatus('Click the Help button for usage instructions.');
+    setInitialPath();
 }, 100);
 
 class EditorEnhancements {
@@ -533,52 +649,58 @@ class EditorEnhancements {
         const lineHeight = parseFloat(computedStyle.lineHeight);
         const paddingTop = parseFloat(computedStyle.paddingTop);
         const paddingBottom = parseFloat(computedStyle.paddingBottom);
-        
-        // Ensure consistent padding across all elements
-        const padding = {
-            top: paddingTop,
-            bottom: paddingBottom,
-            left: parseFloat(computedStyle.paddingLeft),
-            right: parseFloat(computedStyle.paddingRight)
-        };
     
-        // Apply consistent styles to textarea
-        textarea.style.padding = `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`;
+        // Ensure textarea has proper box-sizing
+        textarea.style.boxSizing = 'border-box';
+        
+        // Set consistent padding
+        textarea.style.padding = `${paddingTop}px ${parseFloat(computedStyle.paddingRight)}px ${paddingBottom}px ${parseFloat(computedStyle.paddingLeft)}px`;
+        
+        // Calculate number of visible lines
+        const visibleLines = Math.floor((fixedEditorHeight - (paddingTop + paddingBottom)) / lineHeight);
+        
+        // Calculate content height including an extra buffer for last line
+        const lines = textarea.value.split('\n');
+        const totalLines = lines.length;
+        const extraBuffer = lineHeight; // Add extra space for last line
+        
+        const contentHeight = Math.max(
+            (totalLines * lineHeight) + paddingTop + paddingBottom + extraBuffer,
+            fixedEditorHeight
+        );
+    
+        // Apply styles to textarea
         textarea.style.minHeight = '100%';
         textarea.style.height = '100%';
         textarea.style.lineHeight = `${lineHeight}px`;
         
-        // Calculate the total content height
-        const contentHeight = Math.max(
-            textarea.scrollHeight,
-            highlight ? highlight.scrollHeight : 0
-        );
-    
-        // Set up highlight overlay if it exists
+        // Update highlight overlay if it exists
         if (highlight) {
             highlight.style.padding = textarea.style.padding;
             highlight.style.lineHeight = `${lineHeight}px`;
             highlight.style.height = `${contentHeight}px`;
             highlight.style.width = `${textarea.clientWidth}px`;
+            highlight.style.boxSizing = 'border-box';
         }
     
-        // Configure line numbers with exact matching dimensions
+        // Update line numbers with matching dimensions
         if (lineNumbers) {
-            // Match the text area's dimensions exactly
-            lineNumbers.style.padding = `${padding.top}px 10px ${padding.bottom}px 10px`; // 10px horizontal padding for numbers
+            lineNumbers.style.padding = `${paddingTop}px 10px ${paddingBottom}px 10px`;
             lineNumbers.style.lineHeight = `${lineHeight}px`;
             lineNumbers.style.height = `${contentHeight}px`;
+            lineNumbers.style.boxSizing = 'border-box';
             
-            // Ensure each line number aligns perfectly with text
-            const lines = textarea.value.split('\n');
-            lineNumbers.innerHTML = lines.map((_, index) => 
-                `<div class="line-number" style="height: ${lineHeight}px; line-height: ${lineHeight}px;">${index + 1}</div>`
+            // Generate line numbers with proper height
+            lineNumbers.innerHTML = Array.from(
+                { length: totalLines }, 
+                (_, i) => `<div class="line-number" style="height: ${lineHeight}px; line-height: ${lineHeight}px;">${i + 1}</div>`
             ).join('');
         }
     
-        // Synchronize scrolling with precision alignment
+        // Synchronize scrolling
         const syncScroll = () => {
-            const scrollTop = Math.min(textarea.scrollTop, textarea.scrollHeight - textarea.clientHeight);
+            const maxScroll = textarea.scrollHeight - textarea.clientHeight;
+            const scrollTop = Math.min(textarea.scrollTop, maxScroll);
             
             if (highlight) {
                 highlight.style.transform = `translateY(${-scrollTop}px)`;
@@ -589,11 +711,10 @@ class EditorEnhancements {
                 this.highlightCurrentLine?.();
             }
     
-            // Store scroll position
             localStorage.setItem('editorScrollPosition', scrollTop.toString());
         };
     
-        // Optimized scroll handler with RAF
+        // Optimized scroll handler
         let ticking = false;
         const handleScroll = () => {
             if (!ticking) {
@@ -605,14 +726,14 @@ class EditorEnhancements {
             }
         };
     
-        // Clean up old scroll listener and add new one
+        // Clean up and add scroll listener
         if (this._scrollHandler) {
             textarea.removeEventListener('scroll', this._scrollHandler);
         }
         this._scrollHandler = handleScroll;
         textarea.addEventListener('scroll', handleScroll, { passive: true });
     
-        // Restore scroll position if exists
+        // Restore scroll position
         const savedScrollTop = localStorage.getItem('editorScrollPosition');
         if (savedScrollTop !== null) {
             const parsedScrollTop = parseInt(savedScrollTop);
@@ -622,16 +743,20 @@ class EditorEnhancements {
             }
         }
     
-        // Handle window resize with debounce
+        // Handle window resize
         const debouncedResize = this.debounce(() => {
-            if (highlight) {
-                highlight.style.width = `${textarea.clientWidth}px`;
-            }
-            textarea.scrollTop = Math.min(textarea.scrollTop, textarea.scrollHeight - textarea.clientHeight);
-            this.updateLayout(); // Recalculate everything on resize
+            requestAnimationFrame(() => {
+                if (highlight) {
+                    highlight.style.width = `${textarea.clientWidth}px`;
+                }
+                textarea.scrollTop = Math.min(textarea.scrollTop, textarea.scrollHeight - textarea.clientHeight);
+                syncScroll();
+                
+                // Recalculate everything after resize
+                this.updateLayout();
+            });
         }, 100);
     
-        // Clean up old resize handler and add new one
         if (this._resizeHandler) {
             window.removeEventListener('resize', this._resizeHandler);
         }
@@ -1155,10 +1280,8 @@ class FlipperFileExplorer {
     async selectFile(path, isDirectory = false) {
         this.selectedPath = path;
         
-        // Update existing UI elements
         if (isDirectory) {
             customPathInput.value = path;
-            // Don't update filename if selecting a directory
         } else {
             const filename = path.split('/').pop();
             const directory = path.substring(0, path.lastIndexOf('/'));
@@ -1166,7 +1289,6 @@ class FlipperFileExplorer {
             customPathInput.value = directory;
             fileNameInput.value = filename;
     
-            // Try to read file content
             try {
                 await this.flipper.write(`storage read ${path}\r\n`);
                 await this.flipper.readUntil(`storage read ${path}`);
@@ -1184,7 +1306,7 @@ class FlipperFileExplorer {
             }
         }
         
-        // Refresh to show selection
+        updateLaunchButton(); // Add this line
         this.refresh();
     }
 

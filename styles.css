@@ -609,8 +609,10 @@ input[type="text"]:focus {
 }
 
 .line-number {
-  height: 25.6px; /* 1.6em * 16px */
+  position: relative;
   text-align: right;
+  padding-right: 4px;
+  user-select: none;
 }
 
 textarea {
