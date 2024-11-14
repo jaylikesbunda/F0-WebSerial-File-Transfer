@@ -23,8 +23,8 @@ launchBtn.innerHTML = '▶️ Launch BadUSB (BETA)';
 launchBtn.className = 'launch-btn';
 launchBtn.style.display = 'none'; // Initially hidden
 launchBtn.title = 'Launch selected BadUSB script';
-document.querySelector('#sendBtn').insertAdjacentElement('afterend', launchBtn);
-// Add this to your CSS
+// document.querySelector('#sendBtn').insertAdjacentElement('afterend', launchBtn);
+// // Add this to your CSS
 const style = document.createElement('style');
 style.textContent = `
     .launch-btn {
