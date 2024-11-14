@@ -1,3 +1,8 @@
+/* Smooth Scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
 :root {
   --bg-primary: #1a1b1e;
   --bg-secondary: #2c2e33;
@@ -12,10 +17,13 @@
   --accent-warning: #f59e0b;
   --border-color: #374151;
   --shadow-color: rgba(0, 0, 0, 0.3);
+  --transition-duration: 0.2s;
+  --transition-ease: ease;
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: clamp(14px, 2vw, 16px);
   max-width: 900px;
   margin: 0 auto;
   padding: 20px;
@@ -29,6 +37,7 @@ body {
   border-radius: 16px;
   box-shadow: 0 4px 12px var(--shadow-color);
   border: 1px solid var(--border-color);
+  animation: fadeIn 0.3s ease-out;
 }
 
 /* Header */
@@ -74,12 +83,13 @@ body {
   border-radius: 50%;
   background: var(--accent-error);
   transition: background-color 0.3s;
-  box-shadow: 0 0 8px var(--accent-error);
+  box-shadow: 0 0 20px var(--accent-error);
 }
 
 .status-indicator.connected {
   background: var(--accent-success);
-  box-shadow: 0 0 8px var(--accent-success);
+  box-shadow: 0 0 20px var(--accent-success);
+  animation: pulse 2s infinite;
 }
 
 .controls {
@@ -97,7 +107,7 @@ button {
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: all var(--transition-duration) var(--transition-ease);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -107,6 +117,7 @@ button {
 button:hover {
   background: var(--accent-primary-hover);
   transform: translateY(-1px);
+  filter: brightness(1.1);
 }
 
 button:disabled {
@@ -128,6 +139,20 @@ button:disabled {
   background: var(--accent-success-hover);
 }
 
+#sendBtn:focus {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Focus States for Accessibility */
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
 /* File Configuration */
 .file-config {
   display: flex;
@@ -139,7 +164,8 @@ button:disabled {
   border-radius: 12px;
 }
 
-.file-location, .filename-input {
+.file-location,
+.filename-input {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -156,17 +182,19 @@ label {
   color: var(--text-secondary);
 }
 
-select, input[type="text"] {
+select,
+input[type="text"] {
   padding: 10px 14px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  transition: all 0.2s ease;
+  transition: all var(--transition-duration) var(--transition-ease);
 }
 
-select:focus, input[type="text"]:focus {
+select:focus,
+input[type="text"]:focus {
   outline: none;
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2);
@@ -283,7 +311,7 @@ select:focus, input[type="text"]:focus {
   border: 2px dashed var(--border-color);
   border-radius: 12px;
   background: var(--bg-tertiary);
-  transition: all 0.2s ease;
+  transition: all var(--transition-duration) var(--transition-ease);
 }
 
 .upload-area:hover {
@@ -320,7 +348,7 @@ select:focus, input[type="text"]:focus {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  background: var(--accent-primary);
 }
 
 /* Status Colors */
@@ -356,7 +384,7 @@ select:focus, input[type="text"]:focus {
   white-space: nowrap;
   opacity: 0;
   visibility: hidden;
-  transition: all 0.2s;
+  transition: opacity var(--transition-duration), transform var(--transition-duration);
   border: 1px solid var(--border-color);
   box-shadow: 0 4px 12px var(--shadow-color);
 }
@@ -371,133 +399,134 @@ select:focus, input[type="text"]:focus {
 /* Large tablets and small desktop */
 @media (max-width: 1024px) {
   body {
-      max-width: 95%;
+    max-width: 95%;
   }
 
   .container {
-      padding: 20px;
+    padding: 20px;
   }
 }
 
 /* Tablets */
 @media (max-width: 768px) {
   body {
-      padding: 12px;
+    padding: 12px;
   }
-  
+
   .container {
-      padding: 16px;
+    padding: 16px;
   }
-  
+
   .header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 16px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
   }
-  
+
   .header h1 {
-      font-size: 24px;
+    font-size: 24px;
   }
 
   .connection-status {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 16px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
   }
-  
+
   .controls {
-      width: 100%;
-      flex-wrap: wrap;
+    width: 100%;
+    flex-wrap: wrap;
   }
-  
+
   .location-inputs {
-      flex-direction: column;
+    flex-direction: column;
   }
-  
-  #folderSelect, #customPath {
-      width: 100%;
+
+  #folderSelect,
+  #customPath {
+    width: 100%;
   }
-  
+
   .mode-toggle {
-      width: 100%;
-      justify-content: center;
+    width: 100%;
+    justify-content: center;
   }
 
   .upload-area {
-      flex-direction: column;
-      text-align: center;
-      padding: 16px;
+    flex-direction: column;
+    text-align: center;
+    padding: 16px;
   }
 
   .editor-toolbar {
-      flex-wrap: wrap;
-      justify-content: center;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 }
 
 /* Large Phones */
 @media (max-width: 576px) {
   body {
-      padding: 8px;
+    padding: 8px;
   }
 
   .container {
-      padding: 12px;
-      border-radius: 12px;
+    padding: 12px;
+    border-radius: 12px;
   }
 
   .header h1 {
-      font-size: 20px;
+    font-size: 20px;
   }
 
   .help-btn {
-      width: 100%;
+    width: 100%;
   }
 
   button {
-      padding: 8px 16px;
-      font-size: 13px;
+    padding: 8px 16px;
+    font-size: 13px;
   }
 
   .file-config {
-      padding: 16px;
+    padding: 16px;
   }
 
   .editor-statusbar {
-      flex-direction: column;
-      gap: 8px;
-      align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
   }
 
   [data-tooltip]:before {
-      white-space: normal;
-      width: 200px;
-      text-align: center;
+    white-space: normal;
+    width: 200px;
+    text-align: center;
   }
 }
 
 /* Small Phones */
 @media (max-width: 375px) {
   .container {
-      padding: 10px;
+    padding: 10px;
   }
 
   .header h1 {
-      font-size: 18px;
+    font-size: 18px;
   }
 
   .mode-toggle button {
-      padding: 6px 12px;
-      font-size: 12px;
+    padding: 6px 12px;
+    font-size: 12px;
   }
 
   .status-log {
-      font-size: 12px;
+    font-size: 12px;
   }
 
   .editor-toolbar button {
-      padding: 4px 8px;
-      font-size: 11px;
+    padding: 4px 8px;
+    font-size: 11px;
   }
 }
 
@@ -535,16 +564,32 @@ select:focus, input[type="text"]:focus {
 
 /* Animations */
 @keyframes fadeIn {
-  from { 
-      opacity: 0;
-      transform: translateY(10px);
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-  to { 
-      opacity: 1;
-      transform: translateY(0);
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-.container {
-  animation: fadeIn 0.3s ease-out;
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+/* Reduced Motion Preference */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
 }
