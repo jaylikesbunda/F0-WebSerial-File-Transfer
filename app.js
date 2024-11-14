@@ -448,7 +448,7 @@ class EditorEnhancements {
             font-size: 14px;
             line-height: 1.6;
             tab-size: 4;
-            top: 10px;
+            top: 0px;
             white-space: pre;
         `;
         highlight.style.cssText += commonStyles;
@@ -515,28 +515,161 @@ class EditorEnhancements {
     updateLayout() {
         if (!this.container || !this.wrapper) return;
     
-        // Set fixed editor height
+        // Get all relevant elements
+        const textarea = this.textarea;
+        const highlight = this.highlight;
+        const lineNumbers = this.lineNumbers;
+        const lineNumbersWrapper = this.lineNumbersWrapper;
+    
+        // Reset any existing scroll handlers
+        textarea.onscroll = null;
+    
+        // Set initial dimensions
         const fixedEditorHeight = 300;
         this.wrapper.style.height = `${fixedEditorHeight}px`;
         
-        // Update dimensions with RAF to ensure smooth updates
-        requestAnimationFrame(() => {
-            const textareaRect = this.textarea.getBoundingClientRect();
+        // Get computed styles for precise measurements
+        const computedStyle = window.getComputedStyle(textarea);
+        const lineHeight = parseFloat(computedStyle.lineHeight);
+        const paddingTop = parseFloat(computedStyle.paddingTop);
+        const paddingBottom = parseFloat(computedStyle.paddingBottom);
+        
+        // Ensure consistent padding across all elements
+        const padding = {
+            top: paddingTop,
+            bottom: paddingBottom,
+            left: parseFloat(computedStyle.paddingLeft),
+            right: parseFloat(computedStyle.paddingRight)
+        };
+    
+        // Apply consistent styles to textarea
+        textarea.style.padding = `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`;
+        textarea.style.minHeight = '100%';
+        textarea.style.height = '100%';
+        textarea.style.lineHeight = `${lineHeight}px`;
+        
+        // Calculate the total content height
+        const contentHeight = Math.max(
+            textarea.scrollHeight,
+            highlight ? highlight.scrollHeight : 0
+        );
+    
+        // Set up highlight overlay if it exists
+        if (highlight) {
+            highlight.style.padding = textarea.style.padding;
+            highlight.style.lineHeight = `${lineHeight}px`;
+            highlight.style.height = `${contentHeight}px`;
+            highlight.style.width = `${textarea.clientWidth}px`;
+        }
+    
+        // Configure line numbers with exact matching dimensions
+        if (lineNumbers) {
+            // Match the text area's dimensions exactly
+            lineNumbers.style.padding = `${padding.top}px 10px ${padding.bottom}px 10px`; // 10px horizontal padding for numbers
+            lineNumbers.style.lineHeight = `${lineHeight}px`;
+            lineNumbers.style.height = `${contentHeight}px`;
             
-            // Update highlight overlay width
-            if (this.highlight) {
-                this.highlight.style.width = `${textareaRect.width}px`;
-            }
+            // Ensure each line number aligns perfectly with text
+            const lines = textarea.value.split('\n');
+            lineNumbers.innerHTML = lines.map((_, index) => 
+                `<div class="line-number" style="height: ${lineHeight}px; line-height: ${lineHeight}px;">${index + 1}</div>`
+            ).join('');
+        }
+    
+        // Synchronize scrolling with precision alignment
+        const syncScroll = () => {
+            const scrollTop = Math.min(textarea.scrollTop, textarea.scrollHeight - textarea.clientHeight);
             
-            // Update line numbers height only when needed
-            if (this.lineNumbers && this.lineNumbers.offsetHeight < this.textarea.scrollHeight) {
-                this.lineNumbers.style.height = `${this.textarea.scrollHeight}px`;
-                // Keep scroll position in sync
-                this.lineNumbers.style.transform = `translateY(${-this.textarea.scrollTop}px)`;
+            if (highlight) {
+                highlight.style.transform = `translateY(${-scrollTop}px)`;
             }
-        });
+    
+            if (lineNumbers) {
+                lineNumbers.style.transform = `translateY(${-scrollTop}px)`;
+                this.highlightCurrentLine?.();
+            }
+    
+            // Store scroll position
+            localStorage.setItem('editorScrollPosition', scrollTop.toString());
+        };
+    
+        // Optimized scroll handler with RAF
+        let ticking = false;
+        const handleScroll = () => {
+            if (!ticking) {
+                requestAnimationFrame(() => {
+                    syncScroll();
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        };
+    
+        // Clean up old scroll listener and add new one
+        if (this._scrollHandler) {
+            textarea.removeEventListener('scroll', this._scrollHandler);
+        }
+        this._scrollHandler = handleScroll;
+        textarea.addEventListener('scroll', handleScroll, { passive: true });
+    
+        // Restore scroll position if exists
+        const savedScrollTop = localStorage.getItem('editorScrollPosition');
+        if (savedScrollTop !== null) {
+            const parsedScrollTop = parseInt(savedScrollTop);
+            if (!isNaN(parsedScrollTop) && parsedScrollTop <= textarea.scrollHeight - textarea.clientHeight) {
+                textarea.scrollTop = parsedScrollTop;
+                syncScroll();
+            }
+        }
+    
+        // Handle window resize with debounce
+        const debouncedResize = this.debounce(() => {
+            if (highlight) {
+                highlight.style.width = `${textarea.clientWidth}px`;
+            }
+            textarea.scrollTop = Math.min(textarea.scrollTop, textarea.scrollHeight - textarea.clientHeight);
+            this.updateLayout(); // Recalculate everything on resize
+        }, 100);
+    
+        // Clean up old resize handler and add new one
+        if (this._resizeHandler) {
+            window.removeEventListener('resize', this._resizeHandler);
+        }
+        this._resizeHandler = debouncedResize;
+        window.addEventListener('resize', debouncedResize);
+    
+        // Set up intersection observer
+        if (this.intersectionObserver) {
+            this.intersectionObserver.disconnect();
+        }
+        this.intersectionObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    syncScroll();
+                }
+            });
+        }, { threshold: 0.1 });
+        this.intersectionObserver.observe(this.wrapper);
+    
+        // Initial sync
+        syncScroll();
     }
-
+    
+    // Add this cleanup method to your class
+    dispose() {
+        if (this._scrollHandler) {
+            this.textarea?.removeEventListener('scroll', this._scrollHandler);
+        }
+        if (this._resizeHandler) {
+            window.removeEventListener('resize', this._resizeHandler);
+        }
+        if (this.intersectionObserver) {
+            this.intersectionObserver.disconnect();
+        }
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+        }
+    }
 
 
     
