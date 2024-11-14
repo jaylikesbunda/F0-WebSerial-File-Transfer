@@ -421,7 +421,7 @@ class EditorEnhancements {
         contentWrapper.style.cssText = `
             position: relative;
             flex: 1;
-            top: 20px;
+            top: 0px;
             overflow: hidden;
         `;
         wrapper.appendChild(contentWrapper);
