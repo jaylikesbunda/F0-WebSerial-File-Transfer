@@ -1,20 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Browser-based file transfer tool for Flipper Zero using WebSerial API">
     <meta name="theme-color" content="#ff8616">
-    <title>Flipper Zero WebSerial File Transfer v1.0</title>
+    <title>Flipper Zero WebSerial File Transfer</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/png" href="favicon.png">
     <meta property="og:title" content="Flipper Zero WebSerial File Transfer">
     <meta property="og:description" content="Browser-based file transfer tool for Flipper Zero using WebSerial API">
 </head>
+<canvas id="bgCanvas"></canvas>
 <body>
     <div class="container">
+        
         <div class="header">
-            <h1>Flipper Zero WebSerial File Transfer v1.0</h1>
+            <h1>Flipper Zero WebSerial File Transfer v1.0.1</h1>
             <p class="subtitle">Transfer files directly through your browser</p>
             <button id="helpBtn" class="help-btn" aria-label="Help">Help</button>
         </div>
@@ -42,14 +45,14 @@
                         <option value="custom">Custom Path...</option>
                     </select>
                     <input type="text" id="customPath" placeholder="Enter custom path (e.g., /ext/my_scripts/)"
-                           aria-label="Custom path input">
+                        aria-label="Custom path input">
                 </div>
             </div>
 
             <div class="filename-input">
                 <label for="fileName">Filename:</label>
                 <input type="text" id="fileName" placeholder="Enter filename (e.g., my_script.txt)"
-                       aria-label="Enter filename">
+                    aria-label="Enter filename">
             </div>
         </div>
 
@@ -78,8 +81,9 @@
             <div id="status" class="status-log" role="log" aria-live="polite">Ready to connect...</div>
         </div>
     </div>
-
+    <script src="background.js"></script>
     <script src="serial.js"></script>
     <script src="app.js"></script>
 </body>
+
 </html>
