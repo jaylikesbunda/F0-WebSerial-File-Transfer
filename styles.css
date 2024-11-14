@@ -593,3 +593,27 @@ input[type="text"]:focus {
     transition: none !important;
   }
 }
+
+.editor-wrapper {
+  height: 300px;
+  overflow: hidden;
+}
+
+.line-numbers {
+  position: relative;
+  padding: 16px 10px;
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-y: hidden;
+}
+
+.line-number {
+  height: 25.6px; /* 1.6em * 16px */
+  text-align: right;
+}
+
+textarea {
+  height: 100%;
+  overflow-y: auto;
+}

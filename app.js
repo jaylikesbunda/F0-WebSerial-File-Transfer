@@ -341,18 +341,17 @@ class EditorEnhancements {
             return highlightedWords.join(' ');
         }
     };
-
     setupEditor() {
         // Remove any existing editor if present
         if (this.container) {
             this.container.remove();
         }
-
+    
         // Create main container
         const container = document.createElement('div');
         container.className = 'editor-container';
         this.textarea.parentNode.insertBefore(container, this.textarea);
-
+    
         // Create toolbar
         const toolbar = document.createElement('div');
         toolbar.className = 'editor-toolbar';
@@ -363,7 +362,7 @@ class EditorEnhancements {
             <button id="copyContent" title="Copy to Clipboard">Copy</button>
         `;
         container.appendChild(toolbar);
-
+    
         // Add Ducky syntax button
         const syntaxBtn = document.createElement('button');
         syntaxBtn.id = 'toggleSyntax';
@@ -373,35 +372,60 @@ class EditorEnhancements {
             this.duckyHighlighter.isEnabled = !this.duckyHighlighter.isEnabled;
             syntaxBtn.classList.toggle('active');
             this.textarea.style.color = this.duckyHighlighter.isEnabled ? 'transparent' : 'var(--text-primary)';
-            this.updateLineNumbers();
+            this.updateSyntaxHighlighting();
         });
         toolbar.appendChild(syntaxBtn);
-
+    
         // Create editor wrapper
         const wrapper = document.createElement('div');
         wrapper.className = 'editor-wrapper';
         wrapper.style.cssText = `
             position: relative;
             display: flex;
-            min-height: 300px;
+            height: 300px;
+            top: 0px;
             background: var(--bg-tertiary);
+            overflow: hidden;
         `;
         container.appendChild(wrapper);
-
-        // Create line numbers
+    
+        // Update line numbers container styles
         const lineNumbers = document.createElement('div');
         lineNumbers.className = 'line-numbers';
-        wrapper.appendChild(lineNumbers);
-
-        // Create content area wrapper
+        lineNumbers.style.cssText = `
+            padding: 16px 10px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            user-select: none;
+            min-width: 40px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        `;
+        
+        // Create a line numbers wrapper for proper scrolling
+        const lineNumbersWrapper = document.createElement('div');
+        lineNumbersWrapper.style.cssText = `
+            position: relative;
+            width: 60px;
+            overflow: hidden;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+        `;
+        lineNumbersWrapper.appendChild(lineNumbers);
+        wrapper.appendChild(lineNumbersWrapper);
+    
+        // Create content wrapper
         const contentWrapper = document.createElement('div');
         contentWrapper.style.cssText = `
             position: relative;
             flex: 1;
-            overflow: auto;
+            top: 20px;
+            overflow: hidden;
         `;
         wrapper.appendChild(contentWrapper);
-
+    
         // Create syntax highlight overlay
         const highlight = document.createElement('div');
         highlight.style.cssText = `
@@ -409,22 +433,28 @@ class EditorEnhancements {
             top: 0;
             left: 0;
             right: 0;
-            bottom: 0;
             pointer-events: none;
             white-space: pre;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 14px;
-            line-height: 1.6;
             padding: 16px;
             margin: 0;
-            overflow: hidden;
             background: transparent;
             z-index: 2;
         `;
         contentWrapper.appendChild(highlight);
-        this.highlight = highlight;
-
-        // Move and style textarea
+    
+        // Apply common styles to synchronized elements
+        const commonStyles = `
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            tab-size: 4;
+            top: 10px;
+            white-space: pre;
+        `;
+        highlight.style.cssText += commonStyles;
+        lineNumbers.style.cssText += commonStyles;
+    
+        // Style and move textarea
         this.textarea.style.cssText = `
             position: absolute;
             top: 0;
@@ -439,17 +469,14 @@ class EditorEnhancements {
             background: transparent;
             color: var(--text-primary);
             caret-color: var(--text-primary);
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 14px;
-            line-height: 1.6;
             padding: 16px;
-            white-space: pre;
+
             overflow: auto;
-            tab-size: 4;
             z-index: 1;
+            ${commonStyles}
         `;
         contentWrapper.appendChild(this.textarea);
-
+    
         // Create status bar
         const statusBar = document.createElement('div');
         statusBar.className = 'editor-statusbar';
@@ -458,19 +485,74 @@ class EditorEnhancements {
             <span id="charCount">Characters: 0</span>
         `;
         container.appendChild(statusBar);
-
+    
         // Store references
         this.container = container;
+        this.wrapper = wrapper;
         this.lineNumbers = lineNumbers;
+        this.lineNumbersWrapper = lineNumbersWrapper;
+        this.highlight = highlight;
         this.statusBar = statusBar;
-
-        // Initial state
-        if (this.duckyHighlighter.isEnabled) {
-            syntaxBtn.classList.add('active');
-            this.textarea.style.color = 'transparent';
-            this.updateLineNumbers();
-        }
+        this.toolbar = toolbar;
+    
+        // Set up resize observer
+        this.resizeObserver = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                if (entry.target === this.container) {
+                    this.updateLayout();
+                }
+            }
+        });
+        this.resizeObserver.observe(this.container);
+    
+        // Initial updates
+        this.updateLayout();
+        this.updateLineNumbers();
+        this.updateSyntaxHighlighting();
+        this.updateStatusBar();
     }
+
+    updateLayout() {
+        if (!this.container || !this.wrapper) return;
+    
+        // Set fixed editor height
+        const fixedEditorHeight = 300;
+        this.wrapper.style.height = `${fixedEditorHeight}px`;
+        
+        // Update dimensions with RAF to ensure smooth updates
+        requestAnimationFrame(() => {
+            const textareaRect = this.textarea.getBoundingClientRect();
+            
+            // Update highlight overlay width
+            if (this.highlight) {
+                this.highlight.style.width = `${textareaRect.width}px`;
+            }
+            
+            // Update line numbers height only when needed
+            if (this.lineNumbers && this.lineNumbers.offsetHeight < this.textarea.scrollHeight) {
+                this.lineNumbers.style.height = `${this.textarea.scrollHeight}px`;
+                // Keep scroll position in sync
+                this.lineNumbers.style.transform = `translateY(${-this.textarea.scrollTop}px)`;
+            }
+        });
+    }
+
+
+
+    
+    updateSyntaxHighlighting() {
+        if (!this.duckyHighlighter.isEnabled) {
+            this.highlight.innerHTML = '';
+            return;
+        }
+    
+        const lines = this.textarea.value.split('\n');
+        const highlightedLines = lines.map(line => 
+            this.duckyHighlighter.highlightLine(line)
+        );
+        this.highlight.innerHTML = highlightedLines.join('\n');
+    }
+    
 
     setupEventListeners() {
         // Word wrap toggle
@@ -480,14 +562,14 @@ class EditorEnhancements {
             this.textarea.style.whiteSpace = isActive ? 'pre-wrap' : 'pre';
             this.textarea.style.overflowX = isActive ? 'hidden' : 'auto';
         });
-
+    
         // Line numbers toggle
         const lineNumbersBtn = this.container.querySelector('#toggleLineNumbers');
         lineNumbersBtn.addEventListener('click', () => {
             const isActive = lineNumbersBtn.classList.toggle('active');
             this.lineNumbers.style.display = isActive ? 'block' : 'none';
         });
-
+    
         // Format code
         this.container.querySelector('#formatCode').addEventListener('click', () => {
             try {
@@ -501,7 +583,7 @@ class EditorEnhancements {
                 alert('An error occurred while formatting the code.');
             }
         });
-
+    
         // Copy content
         this.container.querySelector('#copyContent').addEventListener('click', async () => {
             try {
@@ -514,9 +596,9 @@ class EditorEnhancements {
                 console.error('Copy error:', error);
             }
         });
-
+    
+        // Input handling
         this.textarea.addEventListener('input', () => {
-            // Update syntax highlighting immediately
             if (this.duckyHighlighter.isEnabled) {
                 const lines = this.textarea.value.split('\n');
                 const highlightedLines = lines.map(line => 
@@ -524,38 +606,40 @@ class EditorEnhancements {
                 );
                 this.highlight.innerHTML = highlightedLines.join('\n');
             }
-        
-            // Debounce less critical updates
+            
             this.debounce(() => {
                 this.updateLineNumbers();
                 this.updateStatusBar();
                 localStorage.setItem('editorContent', this.textarea.value);
             }, 100)();
         });
-
+    
         // Update cursor position
         this.textarea.addEventListener('click', () => this.updateStatusBar());
         this.textarea.addEventListener('keyup', () => this.updateStatusBar());
-
-        // Sync scroll positions
         this.textarea.addEventListener('scroll', () => {
-            this.highlight.scrollTop = this.textarea.scrollTop;
-            this.highlight.scrollLeft = this.textarea.scrollLeft;
-            this.lineNumbers.scrollTop = this.textarea.scrollTop;
+            // Sync highlight overlay
+            if (this.highlight) {
+                this.highlight.style.transform = `translate(0, ${-this.textarea.scrollTop}px)`;
+            }
+            
+            // Sync line numbers
+            if (this.lineNumbers) {
+                this.lineNumbers.style.transform = `translate(0, ${-this.textarea.scrollTop}px)`;
+            }
         });
-        // Handle tab key
+    
+        // Tab key handling
         this.textarea.addEventListener('keydown', (e) => {
             if (e.key === 'Tab') {
                 e.preventDefault();
                 const start = this.textarea.selectionStart;
                 const end = this.textarea.selectionEnd;
-
-                // Get selected text
+    
                 const selectedText = this.textarea.value.substring(start, end);
                 const lines = selectedText.split('\n');
-
+    
                 if (e.shiftKey) {
-                    // Unindent
                     const unindentedLines = lines.map((line) =>
                         line.startsWith('    ') ? line.slice(4) : line
                     );
@@ -564,20 +648,18 @@ class EditorEnhancements {
                     this.textarea.selectionStart = start;
                     this.textarea.selectionEnd = start + newText.length;
                 } else {
-                    // Indent
                     const indentedLines = lines.map((line) => '    ' + line);
                     const newText = indentedLines.join('\n');
                     this.replaceSelection(newText, start, end);
                     this.textarea.selectionStart = start;
                     this.textarea.selectionEnd = start + newText.length;
                 }
-
+    
                 this.updateLineNumbers();
                 this.updateStatusBar();
             }
         });
     }
-
     debounce(func, delay) {
         let timeout;
         return (...args) => {
@@ -590,36 +672,28 @@ class EditorEnhancements {
         this.textarea.setRangeText(text, start, end, 'end');
     }
 
+
     updateLineNumbers() {
         const lines = this.textarea.value.split('\n');
         const lineCount = lines.length;
-        const existingLineCount = this.lineNumbers.childElementCount;
-    
-        if (existingLineCount !== lineCount) {
-            // Adjust line numbers
-            while (this.lineNumbers.firstChild) {
-                this.lineNumbers.removeChild(this.lineNumbers.firstChild);
-            }
-    
-            for (let i = 1; i <= lineCount; i++) {
-                const lineNumber = document.createElement('div');
-                lineNumber.textContent = i;
-                this.lineNumbers.appendChild(lineNumber);
-            }
+        const lineHeight = parseFloat(getComputedStyle(this.textarea).lineHeight);
+        
+        // Create line numbers HTML
+        let lineNumbersHTML = '';
+        for (let i = 1; i <= lineCount; i++) {
+            lineNumbersHTML += `<div class="line-number" style="height: ${lineHeight}px">${i}</div>`;
         }
-    
-        // Update syntax highlighting
-        if (this.duckyHighlighter.isEnabled) {
-            const highlightedLines = lines.map(line => 
-                this.duckyHighlighter.highlightLine(line)
-            );
-            this.highlight.innerHTML = highlightedLines.join('\n');
-        } else {
-            this.highlight.innerHTML = '';
-        }
-    
+        
+        this.lineNumbers.innerHTML = lineNumbersHTML;
+        this.lineNumbers.style.height = `${this.textarea.scrollHeight}px`;
+        
+        // Reset transform when updating line numbers
+        this.lineNumbers.style.transform = `translate(0, ${-this.textarea.scrollTop}px)`;
+        
         this.highlightCurrentLine();
     }
+
+
 
     updateStatusBar() {
         const pos = this.textarea.selectionStart;
